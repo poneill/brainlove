@@ -85,10 +85,45 @@ gotoZero context  = shift (-(currentPos (program context))) context
 
 write :: Program -> Context -> Context
 write code context = context{program = program context ++ code}
--- The write function just emits 
+-- The write function just emits some raw brainfuck code into the
+-- current context
 
 doStatements :: Statements -> Context -> Context
 doStatements = foldr1 (.) . reverse
+{- The doStatements function attempts to corral several of Haskell's
+distinguishing features, chiefly higher-order functions and currying,
+in order to create a sort of DSL in which brainlove programs can be
+written, so it is worth explaining in detail.  Notice that every
+brainlove macro takes a Context as its final argument and returns
+another Context.  By partially applying their arguments, we obtain
+functions of type Context -> Context.  Recall the following types:
+
+allocate :: Var -> Context -> Context
+set :: Var -> Int -> Context -> Context
+(=.) :: Var -> Var -> Context -> Context
+
+Now if we write:
+
+prog = [ allocate "a"
+       , allocate "b"
+       , set "a" 10
+       , (=.) b a
+       ]
+
+then all of the enlisted functions have been partially applied up to
+Context, so their type is Context -> Context and prog has type
+[Context -> Context].  Note also that prog, funky punctuation aside,
+is essentially a human-readable program.  Using reverse and foldr
+(with composition as our operation), we can telescope the list of
+functions to obtain a final function of type Context -> Context which
+is the result of applying each of the statements successively.  (We
+must take care to reverse our list first, since we want the first
+function written to be the innermost function in the composition.
+Finally, applying the composed function to an initial context, we get
+a final context.  This results in the final desirable property that
+doStatements itself can be partially applied to yield a function of
+type Context -> Context, so we can compose large programs from smaller
+programs in a natural way.-}
 
 writeProgram :: Statements -> Context
 writeProgram statements = liftProgram optimize (doStatements statements initContext)
