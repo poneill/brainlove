@@ -10,6 +10,8 @@ data Context = Context { program :: Program
 type Statement = Context -> Context
 type Statements = [Statement]
 
+initContext = Context [] []
+
 currentPos :: Program -> Int
 currentPos program = foldr stack 0 program
     where stack char pos
@@ -19,17 +21,23 @@ currentPos program = foldr stack 0 program
               | otherwise = pos
 
 shift :: Int -> Context -> Context
-shift offset context = context{program = (program context) ++ (replicate (abs offset) symbol)}
+shift offset context = context{program = program context ++ replicate (abs offset) symbol}
     where symbol = if offset > 0 then '>' else '<'
 
 gotoZero :: Context -> Context
 gotoZero context  = shift (-(currentPos (program context))) context
 
 write :: Program -> Context -> Context
-write prog context = context{program = (program context) ++ prog}
+write prog context = context{program = program context ++ prog}
 
 doStatements :: Statements -> Context -> Context
-doStatements statements context = (foldr1 (.) (reverse statements)) context
+doStatements = foldr1 (.) . reverse
+
+writeProgram :: Statements -> Context
+writeProgram statements = liftProgram optimize (doStatements statements initContext)
+
+writeProgramVerbose :: Statements -> Context
+writeProgramVerbose statements = doStatements statements initContext
 
 (<-.) :: Var -> Var -> Context -> Context
 (<-.) b a context = doStatements statements context
@@ -41,7 +49,7 @@ doStatements statements context = (foldr1 (.) (reverse statements)) context
                        , write "]"
                        , gotoZero
                        ]
-          addressOf = \var -> getAddress var (varTable context)
+          addressOf = flip getAddress (varTable context)
 
 (<--.) :: [Var] -> Var -> Context -> Context
 (<--.) bs a context = doStatements (start ++ copies ++ stop) context
@@ -54,7 +62,7 @@ goto a context = doStatements statements context
     where statements = [ gotoZero
                        , shift (addressOf a)
                        ]
-          addressOf = \var -> getAddress var (varTable context)
+          addressOf = flip getAddress (varTable context)
 
 (=.) :: Var -> Var -> Context -> Context
 (=.) b a context = doStatements statements context
@@ -65,7 +73,21 @@ goto a context = doStatements statements context
                        ]
           temp = uniqueVar context
 
---(+.) :: Var -> Var -> 
+zero :: Var -> Context -> Context
+zero var = doStatements statements
+    where statements = [ goto var
+                       , write "[-]"
+                       , gotoZero
+                       ]
+
+set :: Var -> Int -> Context -> Context
+set var const = doStatements statements
+    where statements = [ zero var
+                       , goto var
+                       , write $ replicate const '+'
+                       , gotoZero
+                       ]
+
 uniqueVar :: Context -> Var
 uniqueVar context = head $ dropWhile (`elem` vars) allVars
     where allVars = freeSemiRing ['a'..'z']
@@ -79,19 +101,19 @@ liftProgram :: (Program -> Program) -> Context -> Context
 liftProgram f context = context{program = f (program context)}
 
 allocate :: Var -> Context -> Context
-allocate var = liftVarTable (allocate' var)
+allocate = liftVarTable . allocate'
 
 allocate' :: Var -> VarTable -> VarTable
 allocate' var varTable = varTable ++ [(var, nextFree varTable)]
 
 deallocate :: Var -> Context -> Context
-deallocate var = liftVarTable (deallocate' var)
+deallocate = liftVarTable . deallocate'
 
 deallocate' :: Var -> VarTable -> VarTable
-deallocate' var varTable = filter (\(v,a) -> v /= var) varTable
+deallocate' var = filter (\(v,a) -> v /= var)
 
 nextFree :: VarTable -> Address
-nextFree varTable = head $ dropWhile (\x -> x `elem` (map snd varTable)) [0..]
+nextFree varTable = head $ dropWhile (flip elem (map snd varTable)) [0..]
 
 getAddress :: Var -> VarTable -> Address
 getAddress var varTable = (snd . head) $ filter (\(v,a) -> v == var) varTable
@@ -107,5 +129,5 @@ annihilate ('+':prog) ('-':hold) =  annihilate prog hold
 annihilate ('-':prog) ('+':hold) =  annihilate prog hold
 annihilate (p:prog) hold = annihilate prog (p:hold)
 
-freeSemiRing xs = (concat $ iterate (\ys -> [x ++ y | x <- xs', y<- ys]) xs')
+freeSemiRing xs = concat $ iterate (\ys -> [x ++ y | x <- xs', y<- ys]) xs'
     where xs' = map return xs
