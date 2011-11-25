@@ -39,7 +39,7 @@ writeProgram statements = liftProgram optimize (doStatements statements initCont
 writeProgramVerbose :: Statements -> Context
 writeProgramVerbose statements = doStatements statements initContext
 
-(<-.) :: Var -> Var -> Context -> Context
+(<-.) :: Var -> Var -> Context -> Context --Dump a into b: add a to b, destroying a
 (<-.) b a = doStatements [ goto a
                          , write "[-"
                          , goto b
@@ -49,7 +49,7 @@ writeProgramVerbose statements = doStatements statements initContext
                          , gotoZero
                          ]
 
-(<--.) :: [Var] -> Var -> Context -> Context
+(<--.) :: [Var] -> Var -> Context -> Context --dump a into bs, destroying a
 (<--.) bs a context = doStatements (start ++ copies ++ stop) context
     where start = [goto a, write "[-"]
           copies = concat [[goto b, write "+"] | b <- bs]
@@ -62,14 +62,19 @@ goto a context = doStatements statements context
                        ]
           addressOf = flip getAddress (varTable context)
 
-(=.) :: Var -> Var -> Context -> Context
-(=.) b a context = doStatements statements context
+(<=.) :: Var -> Var -> Context -> Context --add a to b, preserving a
+(<=.) b a context = doStatements statements context
     where statements = [ allocate temp
                        , (<--.) [temp,b] a
                        , (<-.) a temp
                        , deallocate temp
                        ]
           temp = uniqueVar context
+
+(=.) :: Var -> Var -> Context -> Context --set b equal to a, preserving a
+(=.) b a = doStatements [ zero b
+                        , (<=.) b a
+                        ] 
 
 zero :: Var -> Context -> Context
 zero var = doStatements [ goto var
@@ -125,5 +130,13 @@ annihilate ('+':prog) ('-':hold) =  annihilate prog hold
 annihilate ('-':prog) ('+':hold) =  annihilate prog hold
 annihilate (p:prog) hold = annihilate prog (p:hold)
 
+checkDepth :: Program -> Int
+checkDepth prog = foldl stack 0 prog
+    where stack depth char = depth + case char of { '>' -> 1
+                                                  ; '<' -> -1
+                                                  ; otherwise -> 0
+                                                  }
+
 freeSemiRing xs = concat $ iterate (\ys -> [x ++ y | x <- xs', y<- ys]) xs'
     where xs' = map return xs
+
