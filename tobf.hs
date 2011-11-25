@@ -156,6 +156,11 @@ writeProgramVerbose statements = doStatements statements initContext
 -- This macro is slightly more sophisticated.  It adds the value of a
 -- to several variables, zeroing a.
 
+-- mult :: Var -> Var -> Var -> Context -> Context
+-- mult c a b context = doStatements (allocate ++ copy ++ transfer ++ deallocate) context 
+--              where vars = uniqueVar 
+                       
+
 goto :: Var -> Context -> Context
 goto a context = doStatements statements context
     where statements = [ gotoZero
@@ -200,6 +205,11 @@ uniqueVar context = head $ dropWhile (`elem` vars) allVars
     where allVars = freeSemiRing ['a'..'z']
           vars = map fst varTab
           varTab = varTable context
+
+uniqueVars :: Int -> Context -> [Var]
+uniqueVars 0 context = []
+uniqueVars n context = v : uniqueVars (n - 1) (allocate v context)
+    where v = uniqueVar context
 
 liftVarTable :: (VarTable -> VarTable) -> Context -> Context
 liftVarTable f context = context{varTable = f (varTable context)}
