@@ -1,16 +1,16 @@
 {- Brainlove is a psuedo-assembly-like macro language that compiles to
-brainfuck (as well as the name of the compiler for that language.)  It
-is also a learning project for Haskell.  Accordingly, some moves are
-made far more explicitly than they could be.  Comments and suggestions
-are always welcome.
+brainfuck.  It is also a learning project for Haskell.  Accordingly,
+some moves are made far more explicitly than they could be.  Comments
+and suggestions are always welcome.
 
-brainlove converts sequences of statements into brainfuck code.  The
-Brainlove language, however, is not formally specified; rather, it is
-totally made up as I go along.  The idea at present is to try to
-formulate natural macros that will cleanly bootstrap up into something
-like assembly or even BASIC.  Currently, the only implemented features
-are memory allocation, various forms of variable assignment, as well
-as add and multiplication instructions.
+brainlove (i.e., the Brainlove compiler) converts sequences of
+statements into brainfuck code.  The Brainlove language, however, is
+not formally specified. Rather, it is totally made up as I go along.
+The idea at present is to try to formulate natural macros that will
+cleanly bootstrap up into something like assembly or even BASIC.
+Currently, the only implemented features are memory allocation,
+various forms of variable assignment, as well as add and
+multiplication instructions.
 
 Let's start out by defining some type synonyms to motivate ourselves.-}
 
