@@ -154,12 +154,29 @@ writeProgramVerbose statements = doStatements statements initContext
           copies = concat [[goto b, write "+"] | b <- bs]
           stop = [goto a, write "]", gotoZero]
 -- This macro is slightly more sophisticated.  It adds the value of a
--- to several variables, zeroing a.
+-- to several variables, zeroing a.                       
 
--- mult :: Var -> Var -> Var -> Context -> Context
--- mult c a b context = doStatements (allocate ++ copy ++ transfer ++ deallocate) context 
---              where vars = uniqueVar 
-                       
+while :: Var -> Context -> Context
+while a = doStatements [ goto a
+                       , write "["
+                       ]
+endWhile :: Var -> Context -> Context
+endWhile a = doStatements [ goto a
+                          , write "]"
+                          , gotoZero
+                          ]
+
+increment :: Var -> Context -> Context
+increment a = doStatements [ goto a
+                           , write "+"
+                           , gotoZero
+                           ]
+
+decrement :: Var -> Context -> Context
+decrement a = doStatements [ goto a
+                           , write "-"
+                           , gotoZero
+                           ]
 
 goto :: Var -> Context -> Context
 goto a context = doStatements statements context
@@ -186,6 +203,19 @@ add :: Var -> Var -> Var -> Context -> Context --add a + b, store result in c
 add c a b = doStatements [ (=.)  c a --set c to a
                          , (<=.) c b --then safely add b to c
                          ]
+
+mult :: Var -> Var -> Var -> Context -> Context --mult a * b, store result in c
+mult c a b context = doStatements statements context
+    where b'         = uniqueVar context
+          statements = [ allocate b'
+                       , (<=.) b' b
+                       , while b'
+                       , (<=.) c a
+                       , decrement b'
+                       , endWhile b'
+                       , deallocate b'
+                       ]
+
 
 zero :: Var -> Context -> Context
 zero var = doStatements [ goto var
