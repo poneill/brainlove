@@ -1,17 +1,56 @@
+{- Brainlove is a psuedo-assembly-like macro language that compiles to
+brainfuck (as well as the name of the compiler for that language.)  It
+is also a learning project for Haskell.  Accordingly, some moves are
+made far more explicitly than they could be.  Comments and suggestions
+are always welcome.
+
+brainlove converts sequences of statements into brainfuck code.  The
+Brainlove language, however, is not formally specified; rather, it is
+totally made up as I go along.  The idea at present is to try to
+formulate natural macros that will cleanly bootstrap up into something
+like assembly or even BASIC.  Currently, the only implemented features
+are memory allocation, various forms of variable assignment and an add
+instruction.  
+
+Let's start out by defining some type synonyms to motivate ourselves.-}
+
 type Instruction = Char
+-- An instruction is a single character of brainfuck code.
 type Program = [Instruction]
+-- A program, naturally, is a list of brainfuck instructions.
 type Address = Int
+-- An address is a location on the brainfuck tape, represented by an integer.
 type Var = String
+-- A brainlove variable is just a string.  We won't place any
+-- restrictions on what constitutes a valid identifier.  We will just
+-- assume that the user would never try to use brainlove keywords or
+-- strings of punctuation or anything like that.  That would be rude.
 type VarTable = [(Var,Address)]
-data Context = Context { program :: Program
-                       , varTable :: VarTable
-                       }
-               deriving Show
-type Statement = Context -> Context
+-- A VarTable is a mapping from variables to addresses.  There is a
+-- function in the Standard Prelude called 
+--
+-- lookup :: a -> [(a,b)] -> Maybe b 
+--
+-- which gives you an idea of how the VarTable type will be used here.
+-- Lookup anticipates failure and wraps its result in the Maybe monad.
+-- Here we are going balls to the wall and assuming that the user will
+-- never reference unallocated variables.
+ 
+data Context = Context { program :: Program 
+                       , varTable :: VarTable } 
+               deriving Show 
+
+-- Contexts are datatypes consisting of a Program and a VarTable.  As
+-- we pass through a brainlove program, the context is just the
+-- brainfuck code emitted so far, along with a record of what
+-- memory is currently in play.
+type Statement = Context -> Context 
+-- A statement (of brainlove) is a function from context to context.  
 type Statements = [Statement]
-
+-- The type Statements is just a list of type Statement, which you can
+-- just think of as a brainlove program.
 initContext = Context [] []
-
+-- The simplest context you can have is just an empty program and an empty varTable.
 currentPos :: Program -> Int
 currentPos program = foldr stack 0 program
     where stack char pos
@@ -19,6 +58,13 @@ currentPos program = foldr stack 0 program
               | char == '<' = pos - 1
               | char == '|' = 0
               | otherwise = pos
+-- Often it will be important to know where we are on the brainfuck
+-- tape.  currentPos tells us.  I have not yet decided whether it is
+-- worthwhile to implement the '|' instruction, which is a breadcrumb
+-- to the compiler that the tape head is currently at the 0 position.
+-- (Most brainfuck interpreters would treat those as comments, and in
+-- any case it would be trivial to remove them on the final pass.  For
+-- now, it's left in.
 
 shift :: Int -> Context -> Context
 shift offset context = context{program = program context ++ replicate (abs offset) symbol}
@@ -134,13 +180,6 @@ annihilate ('>':prog) ('<':hold) = annihilate prog hold
 annihilate ('+':prog) ('-':hold) =  annihilate prog hold
 annihilate ('-':prog) ('+':hold) =  annihilate prog hold
 annihilate (p:prog) hold = annihilate prog (p:hold)
-
-checkDepth :: Program -> Int 
-checkDepth prog = foldl stack 0 prog
-    where stack depth char = depth + case char of { '>' -> 1
-                                                  ; '<' -> -1
-                                                  ; otherwise -> 0
-                                                  }
 
 freeSemiRing xs = concat $ iterate (\ys -> [x ++ y | x <- xs', y<- ys]) xs'
     where xs' = map return xs
