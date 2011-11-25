@@ -9,8 +9,8 @@ Brainlove language, however, is not formally specified; rather, it is
 totally made up as I go along.  The idea at present is to try to
 formulate natural macros that will cleanly bootstrap up into something
 like assembly or even BASIC.  Currently, the only implemented features
-are memory allocation, various forms of variable assignment and an add
-instruction.  
+are memory allocation, various forms of variable assignment, as well
+as add and multiplication instructions.
 
 Let's start out by defining some type synonyms to motivate ourselves.-}
 
