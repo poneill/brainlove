@@ -76,6 +76,11 @@ goto a context = doStatements statements context
                         , (<=.) b a
                         ] 
 
+add :: Var -> Var -> Var -> Context -> Context --add a + b, store result in c
+add c a b = doStatements [ (=.)  c a --set c to a
+                         , (<=.) c b --then safely add b to c
+                         ]
+
 zero :: Var -> Context -> Context
 zero var = doStatements [ goto var
                         , write "[-]"
@@ -130,7 +135,7 @@ annihilate ('+':prog) ('-':hold) =  annihilate prog hold
 annihilate ('-':prog) ('+':hold) =  annihilate prog hold
 annihilate (p:prog) hold = annihilate prog (p:hold)
 
-checkDepth :: Program -> Int
+checkDepth :: Program -> Int 
 checkDepth prog = foldl stack 0 prog
     where stack depth char = depth + case char of { '>' -> 1
                                                   ; '<' -> -1
