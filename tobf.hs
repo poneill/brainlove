@@ -69,12 +69,23 @@ currentPos program = foldr stack 0 program
 shift :: Int -> Context -> Context
 shift offset context = context{program = program context ++ replicate (abs offset) symbol}
     where symbol = if offset > 0 then '>' else '<'
-
+-- The shift function just moves the tape head left or right by the specified offset
 gotoZero :: Context -> Context
 gotoZero context  = shift (-(currentPos (program context))) context
+-- gotoZero returns the tape head to the zero position.  This is
+-- actually one of the most important functions, since the compiler
+-- relies on a sort of "dead-reckoning" system to access memory: since
+-- there's no way of directly accessing the position of the tape head
+-- at run-time, we must keep track of it at compile-time by repeatedly
+-- "tagging home base" between statements.  Fortunately these
+-- redundant instructions are trivially optimizable; otherwise they
+-- could actually change the big O of brainlove algorithms, since
+-- variable access would be linear in the number of allocated
+-- variables.
 
 write :: Program -> Context -> Context
-write prog context = context{program = program context ++ prog}
+write code context = context{program = program context ++ code}
+-- The write function just emits 
 
 doStatements :: Statements -> Context -> Context
 doStatements = foldr1 (.) . reverse
