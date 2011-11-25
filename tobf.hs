@@ -40,16 +40,14 @@ writeProgramVerbose :: Statements -> Context
 writeProgramVerbose statements = doStatements statements initContext
 
 (<-.) :: Var -> Var -> Context -> Context
-(<-.) b a context = doStatements statements context
-    where statements = [ goto a
-                       , write "[-"
-                       , goto b
-                       , write "+"
-                       , goto a
-                       , write "]"
-                       , gotoZero
-                       ]
-          addressOf = flip getAddress (varTable context)
+(<-.) b a = doStatements [ goto a
+                         , write "[-"
+                         , goto b
+                         , write "+"
+                         , goto a
+                         , write "]"
+                         , gotoZero
+                         ]
 
 (<--.) :: [Var] -> Var -> Context -> Context
 (<--.) bs a context = doStatements (start ++ copies ++ stop) context
@@ -74,19 +72,17 @@ goto a context = doStatements statements context
           temp = uniqueVar context
 
 zero :: Var -> Context -> Context
-zero var = doStatements statements
-    where statements = [ goto var
-                       , write "[-]"
-                       , gotoZero
-                       ]
+zero var = doStatements [ goto var
+                        , write "[-]"
+                        , gotoZero
+                        ]
 
 set :: Var -> Int -> Context -> Context
-set var const = doStatements statements
-    where statements = [ zero var
-                       , goto var
-                       , write $ replicate const '+'
-                       , gotoZero
-                       ]
+set var const = doStatements [ zero var
+                             , goto var
+                             , write $ replicate const '+'
+                             , gotoZero
+                             ]
 
 uniqueVar :: Context -> Var
 uniqueVar context = head $ dropWhile (`elem` vars) allVars
