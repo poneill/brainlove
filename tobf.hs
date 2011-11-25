@@ -127,11 +127,15 @@ programs in a natural way.-}
 
 writeProgram :: Statements -> Context
 writeProgram statements = liftProgram optimize (doStatements statements initContext)
+--writeProgram is just a wrapper function that takes a brainlove
+--program, applies it to the default Context and cleans up the
+--resulting code.
 
 writeProgramVerbose :: Statements -> Context
 writeProgramVerbose statements = doStatements statements initContext
+--But sometimes you want to see the raw, unoptimized code anyway.
 
-(<-.) :: Var -> Var -> Context -> Context --Dump a into b: add a to b, destroying a
+(<-.) :: Var -> Var -> Context -> Context --Dump a into b: add a to b, zeroing a
 (<-.) b a = doStatements [ goto a
                          , write "[-"
                          , goto b
@@ -140,12 +144,17 @@ writeProgramVerbose statements = doStatements statements initContext
                          , write "]"
                          , gotoZero
                          ]
+-- <-. is the most primitive macro.  It adds the contents of a to b,
+-- zeroing a in the process.  Note that it zeroes the tapehead after
+-- itself.
 
-(<--.) :: [Var] -> Var -> Context -> Context --dump a into bs, destroying a
-(<--.) bs a context = doStatements (start ++ copies ++ stop) context
+(<--.) :: [Var] -> Var -> Context -> Context --dump a into bs, zeroing a
+(<--.) bs a  = doStatements (start ++ copies ++ stop) 
     where start = [goto a, write "[-"]
           copies = concat [[goto b, write "+"] | b <- bs]
           stop = [goto a, write "]", gotoZero]
+-- This macro is slightly more sophisticated.  It adds the value of a
+-- to several variables, zeroing a.
 
 goto :: Var -> Context -> Context
 goto a context = doStatements statements context
