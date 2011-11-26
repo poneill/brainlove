@@ -14,6 +14,8 @@ multiplication instructions.
 
 Let's start out by defining some type synonyms to motivate ourselves.-}
 
+import Data.List
+import Debug.Trace
 type Instruction = Char
 -- An instruction is a single character of brainfuck code.
 type Program = [Instruction]
@@ -35,10 +37,16 @@ type VarTable = [(Var,Address)]
 -- Lookup anticipates failure and wraps its result in the Maybe monad.
 -- Here we are going balls to the wall and assuming that the user will
 -- never reference unallocated variables.
- 
+type StackDepth = Int
+-- The stackDepth keeps track of how far deep the recursive function
+-- calls are going.  Currently it is useful only for verbose
+-- formatting purposes.
+
 data Context = Context { program :: Program 
-                       , varTable :: VarTable } 
-               deriving Show 
+                       , varTable :: VarTable
+                       , stackDepth :: StackDepth
+                       } 
+               deriving (Show)
 
 -- Contexts are datatypes consisting of a Program and a VarTable.  As
 -- we pass through a brainlove program, the context is just the
@@ -49,7 +57,7 @@ type Statement = Context -> Context
 type Statements = [Statement]
 -- The type Statements is just a list of type Statement, which you can
 -- just think of as a brainlove program.
-initContext = Context [] []
+initContext = Context [] [] 0
 -- The simplest context you can have is just an empty program and an empty varTable.
 currentPos :: Program -> Int
 currentPos program = foldr stack 0 program
@@ -66,12 +74,17 @@ currentPos program = foldr stack 0 program
 -- any case it would be trivial to remove them on the final pass.  For
 -- now, it's left in.
 
-shift :: Int -> Context -> Context
-shift offset context = context{program = program context ++ replicate (abs offset) symbol}
-    where symbol = if offset > 0 then '>' else '<'
+--shift :: Int -> Context -> Context
+--shift offset context = context{program = program context ++ replicate (abs offset) symbol}
+--    where symbol = if offset > 0 then '>' else '<'
 -- The shift function just moves the tape head left or right by the specified offset
+shift offset = doStatements [ comment "shift" [show offset]
+                            , liftProgram (++ replicate (abs offset) symbol)]
+    where symbol = if offset > 0 then '>' else '<'
 gotoZero :: Context -> Context
-gotoZero context  = shift (-(currentPos (program context))) context
+gotoZero context  = doStatements statements context
+    where statements = [comment "gotoZero" []
+                       , shift (-(currentPos (program context)))]
 -- gotoZero returns the tape head to the zero position.  This is
 -- actually one of the most important functions, since the compiler
 -- relies on a sort of "dead-reckoning" system to access memory: since
@@ -79,17 +92,24 @@ gotoZero context  = shift (-(currentPos (program context))) context
 -- at run-time, we must keep track of it at compile-time by repeatedly
 -- "tagging home base" between statements.  Fortunately these
 -- redundant instructions are trivially optimizable; otherwise they
--- could actually change the big O of brainlove algorithms, since
+-- could potentially change the big O of brainlove algorithms, since
 -- variable access would be linear in the number of allocated
 -- variables.
 
 write :: Program -> Context -> Context
-write code context = context{program = program context ++ code}
+write code = doStatements [ comment "write" []
+                          , \context -> context{program = program context ++ code}
+                          ]
+
+write' :: Program -> Context -> Context
+write' code = liftProgram (++ code)
+                        
 -- The write function just emits some raw brainfuck code into the
 -- current context
 
 doStatements :: Statements -> Context -> Context
-doStatements = foldr1 (.) . reverse
+doStatements statements = (foldr1 (.) . reverse $  statements') 
+    where statements' = [incStackDepth] ++ statements ++ [decStackDepth]
 {- The doStatements function attempts to corral several of Haskell's
 distinguishing features, chiefly higher-order functions and currying,
 in order to create a sort of DSL in which brainlove programs can be
@@ -135,8 +155,18 @@ writeProgramVerbose :: Statements -> Context
 writeProgramVerbose statements = doStatements statements initContext
 --But sometimes you want to see the raw, unoptimized code anyway.
 
-(<-.) :: Var -> Var -> Context -> Context --Dump a into b: add a to b, zeroing a
-(<-.) b a = doStatements [ goto a
+verbose = False
+
+comment :: String -> [Var] -> Context -> Context
+comment f vars context
+    |verbose = doStatements [write' cs] context
+    | otherwise = context
+    where sd = stackDepth context
+          cs = ("\n" ++ show sd ++ " " ++ (replicate sd ' ') ++ f ++ " " ++ intercalate " " vars ++ " ")
+
+dump :: Var -> Var -> Context -> Context --Dump a into b: add a to b, zeroing a
+dump b a = doStatements [ comment "dump" [b,a]
+                         , goto a
                          , write "[-"
                          , goto b
                          , write "+"
@@ -144,87 +174,111 @@ writeProgramVerbose statements = doStatements statements initContext
                          , write "]"
                          , gotoZero
                          ]
--- <-. is the most primitive macro.  It adds the contents of a to b,
+-- dump is the most primitive macro.  It adds the contents of a to b,
 -- zeroing a in the process.  Note that it zeroes the tapehead after
 -- itself.
 
-(<--.) :: [Var] -> Var -> Context -> Context --dump a into bs, zeroing a
-(<--.) bs a  = doStatements (start ++ copies ++ stop) 
-    where start = [goto a, write "[-"]
+dumps :: [Var] -> Var -> Context -> Context --dump a into bs, zeroing a
+dumps bs a  = doStatements (start ++ copies ++ stop) 
+    where start = [comment "dumps" (bs ++ [a]), goto a, write "[-"]
           copies = concat [[goto b, write "+"] | b <- bs]
           stop = [goto a, write "]", gotoZero]
 -- This macro is slightly more sophisticated.  It adds the value of a
 -- to several variables, zeroing a.                       
 
 while :: Var -> Context -> Context
-while a = doStatements [ goto a
+while a = doStatements [ comment "while" [a]
+                       , goto a
                        , write "["
                        ]
 endWhile :: Var -> Context -> Context
-endWhile a = doStatements [ goto a
+endWhile a = doStatements [ comment "endWhile" [a]
+                          , goto a
                           , write "]"
                           , gotoZero
                           ]
 
 increment :: Var -> Context -> Context
-increment a = doStatements [ goto a
+increment a = doStatements [ comment "increment" [a]
+                           , goto a
                            , write "+"
                            , gotoZero
                            ]
 
 decrement :: Var -> Context -> Context
-decrement a = doStatements [ goto a
+decrement a = doStatements [ comment "decrement" [a]
+                           , goto a
                            , write "-"
                            , gotoZero
                            ]
 
 goto :: Var -> Context -> Context
 goto a context = doStatements statements context
-    where statements = [ gotoZero
+    where statements = [ comment "goto" [a]
+                       , gotoZero
                        , shift (addressOf a)
                        ]
           addressOf = flip getAddress (varTable context)
 
-(<=.) :: Var -> Var -> Context -> Context --add a to b, preserving a
-(<=.) b a context = doStatements statements context
-    where statements = [ allocate temp
-                       , (<--.) [temp,b] a
-                       , (<-.) a temp
+addTo :: Var -> Var -> Context -> Context --add a to b, preserving a
+addTo b a context = doStatements statements context
+    where statements = [ comment "addTo" [b,a]
+                       , allocate temp
+                       , dumps [temp,b] a
+                       , dump a temp
                        , deallocate temp
                        ]
           temp = uniqueVar context
 
-(=.) :: Var -> Var -> Context -> Context --set b equal to a, preserving a
-(=.) b a = doStatements [ zero b
-                        , (<=.) b a
-                        ] 
+equals :: Var -> Var -> Context -> Context --set b equal to a, preserving a
+equals b a = doStatements [ comment "equals" [b,a]
+                          , zero b
+                          , addTo b a
+                          ] 
 
 add :: Var -> Var -> Var -> Context -> Context --add a + b, store result in c
-add c a b = doStatements [ (=.)  c a --set c to a
-                         , (<=.) c b --then safely add b to c
+add c a b = doStatements [ comment "add" [c, a, b]
+                         , equals  c a --set c to a
+                         , addTo c b --then safely add b to c
                          ]
 
 mult :: Var -> Var -> Var -> Context -> Context --mult a * b, store result in c
 mult c a b context = doStatements statements context
     where b'         = uniqueVar context
-          statements = [ allocate b'
-                       , (<=.) b' b
+          statements = [ comment "mult" [c, a, b]
+                       , allocate b'
+                       , addTo b' b
                        , while b'
-                       , (<=.) c a
+                       , addTo c a
                        , decrement b'
                        , endWhile b'
                        , deallocate b'
                        ]
-
+fac :: Var -> Var -> Context -> Context -- store n! in a
+fac a n context = doStatements statements context
+    where [n', acc] = uniqueVars 2 context
+          statements = [ allocate n'
+                       , allocate acc
+                       , addTo n' n
+                       , while n'
+                       , dump acc a
+                       , mult a n' acc
+                       , decrement n'
+                       , endWhile n'
+                       , deallocate n'
+                       , deallocate acc
+                       ]
 
 zero :: Var -> Context -> Context
-zero var = doStatements [ goto var
+zero var = doStatements [ comment "zero" [var]
+                        , goto var
                         , write "[-]"
                         , gotoZero
                         ]
 
 set :: Var -> Int -> Context -> Context
-set var const = doStatements [ zero var
+set var const = doStatements [ comment "set" [var, show const]
+                             , zero var
                              , goto var
                              , write $ replicate const '+'
                              , gotoZero
@@ -246,6 +300,15 @@ liftVarTable f context = context{varTable = f (varTable context)}
 
 liftProgram :: (Program -> Program) -> Context -> Context
 liftProgram f context = context{program = f (program context)}
+
+liftStackDepth :: (StackDepth -> StackDepth) -> Context -> Context
+liftStackDepth f context = context{stackDepth = f (stackDepth context)}
+
+incStackDepth :: Context -> Context
+incStackDepth = liftStackDepth $ (+) 1
+
+decStackDepth :: Context -> Context
+decStackDepth = liftStackDepth $ \x -> x - 1
 
 allocate :: Var -> Context -> Context
 allocate = liftVarTable . allocate'
