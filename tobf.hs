@@ -78,13 +78,11 @@ currentPos program = foldr stack 0 program
 -- any case it would be trivial to remove them on the final pass.  For
 -- now, it's left in.
 
---shift :: Int -> Context -> Context
---shift offset context = context{program = program context ++ replicate (abs offset) symbol}
---    where symbol = if offset > 0 then '>' else '<'
--- The shift function just moves the tape head left or right by the specified offset
+shift :: Int -> Context -> Context
 shift offset = doStatements [ comment "shift" [show offset]
                             , liftProgram (++ replicate (abs offset) symbol)]
     where symbol = if offset > 0 then '>' else '<'
+-- The shift function just moves the tape head left or right by the specified offset
 gotoZero :: Context -> Context
 gotoZero context  = doStatements statements context
     where statements = [comment "gotoZero" []
@@ -262,15 +260,35 @@ fac a n context = doStatements statements context
           statements = [ comment "fac" [a, n]
                        , allocate n'
                        , allocate acc
-                       , addTo n' n
+                       , equals n' n
+                       , decrement n'
+                       , set a 1
                        , while n'
-                       , dump acc a
+                       , equals acc a
                        , mult a n' acc
                        , decrement n'
                        , endWhile n'
                        , deallocate n'
                        , deallocate acc
                        ]
+
+beginIf :: Var -> Context -> Context
+beginIf a = doStatements [ comment "if" [a]
+                         , goto a
+                         , write "["
+                         ]
+
+endIf :: Var -> Context -> Context
+endIf a context = doStatements statements context
+  where temp = uniqueVar context
+        statements = [ comment "endIf" [a]  
+                     , allocate temp
+                     , dump temp a
+                     , goto a
+                     , write "]"
+                     , dump a temp
+                     , deallocate temp
+                     ]
 
 zero :: Var -> Context -> Context
 zero var = doStatements [ comment "zero" [var]
@@ -316,6 +334,7 @@ decStackDepth = liftStackDepth $ \x -> x - 1
 allocate :: Var -> Context -> Context
 allocate var = doStatements [ comment "allocate" [var]
                             , liftVarTable $ allocate' var
+                            , zero var
                             ]
 allocate' :: Var -> VarTable -> VarTable
 allocate' var varTable = varTable ++ [(var, nextFree varTable)]
