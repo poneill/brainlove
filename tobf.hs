@@ -45,6 +45,7 @@ type StackDepth = Int
 data Context = Context { program :: Program 
                        , varTable :: VarTable
                        , stackDepth :: StackDepth
+                       , verbose :: Bool
                        } 
                deriving (Show)
 
@@ -57,8 +58,11 @@ type Statement = Context -> Context
 type Statements = [Statement]
 -- The type Statements is just a list of type Statement, which you can
 -- just think of as a brainlove program.
-initContext = Context [] [] 0
+initContext = Context [] [] 0 False
+initContextVerbose = Context [] [] 0 True
 -- The simplest context you can have is just an empty program and an empty varTable.
+
+
 currentPos :: Program -> Int
 currentPos program = foldr stack 0 program
     where stack char pos
@@ -152,14 +156,12 @@ writeProgram statements = liftProgram optimize (doStatements statements initCont
 --resulting code.
 
 writeProgramVerbose :: Statements -> Context
-writeProgramVerbose statements = doStatements statements initContext
+writeProgramVerbose statements = doStatements statements initContextVerbose
 --But sometimes you want to see the raw, unoptimized code anyway.
-
-verbose = False
 
 comment :: String -> [Var] -> Context -> Context
 comment f vars context
-    |verbose = doStatements [write' cs] context
+    |verbose context = doStatements [write' cs] context
     | otherwise = context
     where sd = stackDepth context
           cs = ("\n" ++ show sd ++ " " ++ (replicate sd ' ') ++ f ++ " " ++ intercalate " " vars ++ " ")
@@ -257,7 +259,8 @@ mult c a b context = doStatements statements context
 fac :: Var -> Var -> Context -> Context -- store n! in a
 fac a n context = doStatements statements context
     where [n', acc] = uniqueVars 2 context
-          statements = [ allocate n'
+          statements = [ comment "fac" [a, n]
+                       , allocate n'
                        , allocate acc
                        , addTo n' n
                        , while n'
@@ -311,13 +314,16 @@ decStackDepth :: Context -> Context
 decStackDepth = liftStackDepth $ \x -> x - 1
 
 allocate :: Var -> Context -> Context
-allocate = liftVarTable . allocate'
-
+allocate var = doStatements [ comment "allocate" [var]
+                            , liftVarTable $ allocate' var
+                            ]
 allocate' :: Var -> VarTable -> VarTable
 allocate' var varTable = varTable ++ [(var, nextFree varTable)]
 
 deallocate :: Var -> Context -> Context
-deallocate = liftVarTable . deallocate'
+deallocate var = doStatements [ comment "deallocate" [var]
+                              , liftVarTable $ deallocate' var
+                              ]
 
 deallocate' :: Var -> VarTable -> VarTable
 deallocate' var = filter (\(v,a) -> v /= var)
