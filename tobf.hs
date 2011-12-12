@@ -159,7 +159,7 @@ writeProgramVerbose statements = doStatements statements initContextVerbose
 
 comment :: String -> [Var] -> Context -> Context
 comment f vars context
-    |verbose context = doStatements [write' cs] context
+    | verbose context = doStatements [write' cs] context
     | otherwise = context
     where sd = stackDepth context
           cs = ("\n" ++ show sd ++ " " ++ (replicate sd ' ') ++ f ++ " " ++ intercalate " " vars ++ " ")
@@ -254,6 +254,7 @@ mult c a b context = doStatements statements context
                        , endWhile b'
                        , deallocate b'
                        ]
+                       
 fac :: Var -> Var -> Context -> Context -- store n! in a
 fac a n context = doStatements statements context
     where [n', acc] = uniqueVars 2 context
