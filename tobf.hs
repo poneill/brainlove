@@ -1,4 +1,4 @@
-{- Brainlove is a psuedo-assembly-like macro language that compiles to
+{- Brainlove is a pseudo-assembly-like macro language that compiles to
 brainfuck.  It is also a learning project for Haskell.  Accordingly,
 some moves are made far more explicitly than they could be.  Comments
 and suggestions are always welcome.
