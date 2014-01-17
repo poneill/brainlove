@@ -25,6 +25,8 @@ type Program = [Instruction]
 type Address = Int
 -- An address is a location on the brainfuck tape, represented by an integer.
 type Var = String
+-- a Const is a integer appearing in a BL program
+type Const = Int
 -- A brainlove variable is just a string.  We won't place any
 -- restrictions on what constitutes a valid identifier.  We will just
 -- assume that the user would never try to use brainlove keywords or
@@ -213,7 +215,7 @@ decrement a = doStatements [ comment "decrement" [a]
                            , write "-"
                            , gotoZero
                            ]
-
+          
 goto :: Var -> Context -> Context
 goto a context = doStatements statements context
     where statements = [ comment "goto" [a]
@@ -300,7 +302,7 @@ zero var = doStatements [ comment "zero" [var]
                         , gotoZero
                         ]
 
-set :: Var -> Int -> Context -> Context
+set :: Var -> Const -> Context -> Context
 set var const = doStatements [ comment "set" [var, show const]
                              , zero var
                              , goto var
